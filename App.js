@@ -1,9 +1,21 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Switch, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, Switch, TouchableOpacity, Alert, Vibration } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useFonts, Roboto_400Regular, Roboto_700Bold } from '@expo-google-fonts/roboto';
 import call from 'react-native-phone-call';
+
+import firebase from 'firebase';
+
+import { config } from './config';
+
+import { getDatabase, ref, onValue } from 'firebase/database';
+
+if(!firebase.apps.length){
+  firebase.initializeApp(config)
+}
+
+
 
 
 export default class App extends React.Component {
@@ -13,14 +25,36 @@ export default class App extends React.Component {
 
     //STATES
     this.state = {
-      isEnabled: true ,
+      isEnabled: true,
+      alertaExibido: false,
       statusName: 'ligado',
       displayBox: 'flex',
       emergencyNumber: {
-        number: '193', // String value with the number to call
+        number: '193', 
         prompt: false
-      }
+      },
+      gas: '999',
+      temperatura: '999'
     }
+
+    firebase.database().ref('mq2_value').on('value', (data) => {
+      
+      this.setState({gas: (data.val() * 100)/600});
+
+      if (this.state.isEnabled == true) {
+        if (data.val() >= 220) {
+          this.exibeAlerta();
+        }
+      }
+      
+    }),
+
+    firebase.database().ref('lm35_value').on('value', (data) => {
+      this.setState({temperatura: data.val()});
+    })
+    
+
+
 
   } // CONSTRUROR
 
@@ -45,7 +79,19 @@ export default class App extends React.Component {
     
   }
 
-  
+  exibeAlerta = () => {
+
+    const ONE_SECOND_IN_MS = 1000;
+    const PATTERN = [1 * ONE_SECOND_IN_MS, 2 * ONE_SECOND_IN_MS, 3 * ONE_SECOND_IN_MS];
+        
+    Vibration.vibrate(PATTERN);
+
+    Alert.alert('ALERTA', 'Possível vazamento de gás detectado', [
+      { text: "Acionar os bombeiros", onPress: () => call(this.state.emergencyNumber) },
+      { text: "Ignorar", onPress: () => console.log("Ignorado") }
+      ],
+      { cancelable: true });
+  }
 
   render() {
     return (
@@ -83,7 +129,7 @@ export default class App extends React.Component {
           <View style={styles.temp_arduino}>
             <View style={styles.temp_text}>
               <Text style={styles.arduino_text_regular}>Temperatura do Ambiente</Text>
-              <Text style={styles.arduino_text_bold}>1000ºC</Text>
+              <Text style={styles.arduino_text_bold}>{this.state.temperatura}ºC</Text>
             </View>
 
             <View style={styles.arduino_icon}>
@@ -96,7 +142,7 @@ export default class App extends React.Component {
           <View style={styles.temp_arduino}>
             <View style={styles.temp_text}>
               <Text style={styles.arduino_text_regular}>Indíce de gases inflamáveis:</Text>
-              <Text style={styles.arduino_text_bold}>100%</Text>
+              <Text style={styles.arduino_text_bold}>{ parseFloat(this.state.gas).toFixed(2)}%</Text>
             </View>
 
             <View style={styles.arduino_icon}>
