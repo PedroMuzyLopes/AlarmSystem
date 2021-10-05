@@ -1,3 +1,7 @@
+//Bibliotecas necessárias
+#include <SoftwareSerial.h>
+#include <ArduinoJson.h>
+
 //
 // Copyright 2015 Google Inc.
 //
@@ -26,11 +30,19 @@
 #define WIFI_SSID "ZTE_2.4G_TuwE7X"
 #define WIFI_PASSWORD "eSyCDX7A"
 
-String values,sensor_data;
+
+// Variáveis de apoio
+String temp_s;
+String gas_s;
+//2 = Rx e 3 = Tx
+SoftwareSerial espArdu(D6, D5);
+
 
 void setup() {
+  
   Serial.begin(9600);
 
+  //PARTE DO SEU CÓDIGO
   delay(1000);
   
   // connect to wifi.
@@ -45,56 +57,42 @@ void setup() {
   Serial.println(WiFi.localIP());
   
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+
+  //----------
+  espArdu.begin(9600);
+  while (!Serial) continue; // Aqui, o código espera o comando serial
 }
 
-int n = 0;
-
 void loop() {
-
-  bool Sr =false;
- 
-  while(Serial.available()){
-    
-        //get sensor data from serial put in sensor_data
-        sensor_data=Serial.readString(); 
-        Sr=true;    
-        
-    }
   
-delay(1000);
+  StaticJsonBuffer<1000> jsonBuffer;
+  JsonObject& data = jsonBuffer.parseObject(espArdu);
 
-  if(Sr==true){  
-    
-  values=sensor_data;
-  
-  //get comma indexes from values variable
-  int fristCommaIndex = values.indexOf(',');
-  int secondCommaIndex = values.indexOf(',', fristCommaIndex+1);
-  
-  //get sensors data from values variable by  spliting by commas and put in to variables  
-  String mq2_value = values.substring(0, fristCommaIndex);
-  String lm35_value = values.substring(fristCommaIndex+1, secondCommaIndex);
-
-
-  //store mq2 sensor data as string in firebase 
-  Firebase.setString("mq2_value",mq2_value);
+  if (data == JsonObject::invalid()) {
+    Serial.println("Conexão falou, verifique as ligações entres esp e arduino");
+    jsonBuffer.clear();
+    return;
+   
+  }
+//PARTE DO SEU CODIGO COM AS DEVIDAS CORREÇÕES
+    Firebase.setString("mq2_value",gas_s);
    delay(10);
   //store lm35 data as string in firebase 
-  Firebase.setString("lm35_value",lm35_value);
+  Firebase.setString("lm35_value",temp_s);
    delay(10);
-  
-  //store previous sensors data as string in firebase
-  
-  Firebase.pushString("previous_mq2_value",mq2_value);
-   delay(10);
-  Firebase.pushString("previous_lm35_value",lm35_value);
-  
-  
-  delay(1000);
   
   if (Firebase.failed()) {  
       return;
   }
-  
-}
+  //-----------------
+ 
+  Serial.print("Gas recebido:  ");
+  float gas = data["gases"];
+  gas_s = gas;
+  Serial.println(gas);
+  Serial.print("Temperatura Recebida do arduino:  ");
+  float temp = data["temperatura"];
+  temp_s= temp;
+  Serial.println(temp);
+  Serial.println("-----------------------------------------");
 }
